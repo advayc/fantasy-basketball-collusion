@@ -62,7 +62,15 @@ const SEED_TEAMS = [
 
 const app = express();
 app.use(express.json());
-app.use(express.static(__dirname));
+app.use(
+  express.static(__dirname, {
+    setHeaders: (res, filePath) => {
+      if (filePath.endsWith(".css") || filePath.endsWith(".js") || filePath.endsWith(".html")) {
+        res.setHeader("Cache-Control", "no-cache, no-store, must-revalidate");
+      }
+    },
+  }),
+);
 
 function safeNum(value, fallback = 0) {
   const n = Number(value);

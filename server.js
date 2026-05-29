@@ -415,7 +415,8 @@ app.get("/api/planner", async (req, res) => {
   });
 });
 
-app.get("*", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/index.html", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 
 const port = safeNum(process.env.PORT, 8787);
 app.listen(port, () => {

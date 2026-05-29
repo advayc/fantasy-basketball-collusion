@@ -268,17 +268,20 @@ function buildWeekPlayers(roster, week, matchupPeriods, proTeams) {
 function projectedTotal(players) {
   return players
     .slice()
+    .filter((p) => !p.isIR && p.slot !== "IR")
     .sort((a, b) => b.weekValue - a.weekValue)
     .slice(0, 6)
     .reduce((sum, p) => sum + p.weekValue, 0);
 }
 
 function evaluateBestTrade(spyPlayers, cmoPlayers, focusCode) {
+  const tradableSpy = spyPlayers.filter((p) => !p.isIR && p.slot !== "IR");
+  const tradableCmo = cmoPlayers.filter((p) => !p.isIR && p.slot !== "IR");
   const baseSpy = projectedTotal(spyPlayers);
   const baseCmo = projectedTotal(cmoPlayers);
   const options = [];
-  for (const spyOut of spyPlayers) {
-    for (const cmoOut of cmoPlayers) {
+  for (const spyOut of tradableSpy) {
+    for (const cmoOut of tradableCmo) {
       const newSpy = spyPlayers.map((p) => (p.id === spyOut.id ? cmoOut : p));
       const newCmo = cmoPlayers.map((p) => (p.id === cmoOut.id ? spyOut : p));
       const gainSpy = projectedTotal(newSpy) - baseSpy;
@@ -295,6 +298,16 @@ function evaluateBestTrade(spyPlayers, cmoPlayers, focusCode) {
       });
     }
   }
+
+  if (!options.length) {
+    return {
+      baseSpy,
+      baseCmo,
+      best: null,
+      alternatives: [],
+    };
+  }
+
   options.sort((a, b) => b.score - a.score);
   const best = options[0] || null;
 

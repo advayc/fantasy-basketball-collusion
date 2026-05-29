@@ -4,6 +4,7 @@ const el = {
   weekSelect: document.getElementById("weekSelect"),
   weekSummary: document.getElementById("weekSummary"),
   timingTable: document.getElementById("timingTable"),
+  combineTradesBtn: document.getElementById("combineTradesBtn"),
   tradeCards: document.getElementById("tradeCards"),
   impactTable: document.getElementById("impactTable"),
   spyTitle: document.getElementById("spyTitle"),
@@ -14,9 +15,10 @@ const el = {
 
 const state = {
   weekOptions: [],
-  currentWeek: 5,
+  currentWeek: null,
   latestData: null,
   selectedOptionIndex: 0,
+  useCombinedTrade: false,
   sort: {
     key: "slot",
     dir: "desc",
@@ -113,12 +115,55 @@ function renderTradeCard(title, trade, spyName, cmoName, optionIndex, active = f
   `;
 }
 
-function rosterTable(team, teamCode, outgoingId, outgoingToName, incomingPlayer, incomingFromName, maxGames) {
+function buildCombinedTrade(options) {
+  const valid = (options || []).filter(Boolean);
+  if (!valid.length) return null;
+
+  const spySeen = new Set();
+  const cmoSeen = new Set();
+  const fromSpy = [];
+  const fromCmo = [];
+
+  let gainSpy = 0;
+  let gainCmo = 0;
+
+  for (const trade of valid) {
+    gainSpy += Number(trade.gainSpy || 0);
+    gainCmo += Number(trade.gainCmo || 0);
+
+    if (trade.fromSpy?.id) {
+      const id = String(trade.fromSpy.id);
+      if (!spySeen.has(id)) {
+        spySeen.add(id);
+        fromSpy.push(trade.fromSpy);
+      }
+    }
+
+    if (trade.fromCmo?.id) {
+      const id = String(trade.fromCmo.id);
+      if (!cmoSeen.has(id)) {
+        cmoSeen.add(id);
+        fromCmo.push(trade.fromCmo);
+      }
+    }
+  }
+
+  return {
+    isCombined: true,
+    fromSpy,
+    fromCmo,
+    gainSpy,
+    gainCmo,
+  };
+}
+
+function rosterTable(team, teamCode, outgoingIds, outgoingToName, incomingPlayers, incomingFromName, maxGames) {
   const sorted = sortPlayers(team.players, state.sort);
+  const outgoingSet = new Set((outgoingIds || []).map((id) => String(id)));
 
   const rows = sorted
     .map((p) => {
-      const isOutgoing = p.id === outgoingId;
+      const isOutgoing = outgoingSet.has(String(p.id));
       const tone = gameToneClass(p.games, maxGames);
       const tradedText = isOutgoing ? `<span class="trade-tag">Traded to ${outgoingToName}</span>` : "";
       const irText = "";
@@ -137,8 +182,9 @@ function rosterTable(team, teamCode, outgoingId, outgoingToName, incomingPlayer,
     })
     .join("");
 
-  const incoming = incomingPlayer
-    ? `<div class="incoming-note">Incoming if accepted: <strong>${incomingPlayer.name}</strong> from ${incomingFromName}</div>`
+  const incomingList = (incomingPlayers || []).filter(Boolean);
+  const incoming = incomingList.length
+    ? `<div class="incoming-note">Incoming if accepted: <strong>${incomingList.map((p) => p.name).join(", ")}</strong> from ${incomingFromName}</div>`
     : "";
 
   return `
@@ -181,13 +227,29 @@ function render(data) {
   `;
 
   const options = [data.bestTrade, ...(data.alternatives || [])].filter(Boolean).slice(0, 3);
+  const combinedTrade = buildCombinedTrade(options);
   if (state.selectedOptionIndex >= options.length) state.selectedOptionIndex = 0;
-  const selectedTrade = options[state.selectedOptionIndex] || options[0] || null;
+  if (state.useCombinedTrade && !combinedTrade) state.useCombinedTrade = false;
+  const selectedTrade = state.useCombinedTrade
+    ? combinedTrade
+    : options[state.selectedOptionIndex] || options[0] || null;
+
+  const combineCount = options.length;
+  const combineLabel = combineCount >= 3
+    ? "Combine All 3 Trades"
+    : combineCount >= 2
+      ? `Combine ${combineCount} Trades`
+      : "Combine Trades";
+  if (el.combineTradesBtn) {
+    el.combineTradesBtn.disabled = combineCount < 2;
+    el.combineTradesBtn.textContent = combineLabel;
+    el.combineTradesBtn.classList.toggle("active", state.useCombinedTrade);
+  }
 
   el.tradeCards.innerHTML = [
-    renderTradeCard("Option 1", options[0], data.spy.name, data.cmo.name, 0, state.selectedOptionIndex === 0, "option-1"),
-    renderTradeCard("Option 2", options[1], data.spy.name, data.cmo.name, 1, state.selectedOptionIndex === 1),
-    renderTradeCard("Option 3", options[2], data.spy.name, data.cmo.name, 2, state.selectedOptionIndex === 2),
+    renderTradeCard("Option 1", options[0], data.spy.name, data.cmo.name, 0, !state.useCombinedTrade && state.selectedOptionIndex === 0, "option-1"),
+    renderTradeCard("Option 2", options[1], data.spy.name, data.cmo.name, 1, !state.useCombinedTrade && state.selectedOptionIndex === 1),
+    renderTradeCard("Option 3", options[2], data.spy.name, data.cmo.name, 2, !state.useCombinedTrade && state.selectedOptionIndex === 2),
   ].join("");
 
   el.impactTable.innerHTML = `
@@ -223,12 +285,34 @@ function render(data) {
     1,
   );
 
+  const spyOutgoingIds = selectedTrade?.isCombined
+    ? selectedTrade.fromSpy.map((p) => p.id)
+    : selectedTrade?.fromSpy?.id
+      ? [selectedTrade.fromSpy.id]
+      : [];
+  const cmoOutgoingIds = selectedTrade?.isCombined
+    ? selectedTrade.fromCmo.map((p) => p.id)
+    : selectedTrade?.fromCmo?.id
+      ? [selectedTrade.fromCmo.id]
+      : [];
+
+  const spyIncomingPlayers = selectedTrade?.isCombined
+    ? selectedTrade.fromCmo
+    : selectedTrade?.fromCmo
+      ? [selectedTrade.fromCmo]
+      : [];
+  const cmoIncomingPlayers = selectedTrade?.isCombined
+    ? selectedTrade.fromSpy
+    : selectedTrade?.fromSpy
+      ? [selectedTrade.fromSpy]
+      : [];
+
   el.spyRoster.innerHTML = rosterTable(
     data.spy,
     "SPY",
-    selectedTrade?.fromSpy?.id || "",
+    spyOutgoingIds,
     data.cmo.name,
-    selectedTrade?.fromCmo || null,
+    spyIncomingPlayers,
     data.cmo.name,
     maxGames,
   );
@@ -236,16 +320,16 @@ function render(data) {
   el.cmoRoster.innerHTML = rosterTable(
     data.cmo,
     "CMO",
-    selectedTrade?.fromCmo?.id || "",
+    cmoOutgoingIds,
     data.spy.name,
-    selectedTrade?.fromSpy || null,
+    cmoIncomingPlayers,
     data.spy.name,
     maxGames,
   );
 }
 
 async function loadPlanner() {
-  const week = Number(el.weekSelect.value || state.currentWeek || 5);
+  const week = Number(el.weekSelect.value || state.currentWeek || 1);
   const res = await fetch(`/api/planner?week=${week}`);
   if (!res.ok) {
     const err = await res.json().catch(() => ({ message: "Failed to load planner." }));
@@ -279,7 +363,13 @@ function handleOptionClick(e) {
   if (!card) return;
   const idx = Number(card.getAttribute("data-option"));
   if (!Number.isInteger(idx)) return;
+  state.useCombinedTrade = false;
   state.selectedOptionIndex = idx;
+  if (state.latestData) render(state.latestData);
+}
+
+function handleCombineTradesClick() {
+  state.useCombinedTrade = !state.useCombinedTrade;
   if (state.latestData) render(state.latestData);
 }
 
@@ -290,7 +380,7 @@ async function init() {
 
     const bootstrap = await fetch("/api/bootstrap").then((r) => r.json());
     state.weekOptions = bootstrap.weekOptions || [];
-    state.currentWeek = bootstrap.currentWeek || 5;
+    state.currentWeek = bootstrap.currentWeek || state.weekOptions[0]?.week || 1;
     renderWeeks(state.weekOptions, state.currentWeek);
     await loadPlanner();
   } catch (err) {
@@ -309,5 +399,8 @@ el.refreshBtn.addEventListener("click", () => {
 el.spyRoster.addEventListener("click", handleSortClick);
 el.cmoRoster.addEventListener("click", handleSortClick);
 el.tradeCards.addEventListener("click", handleOptionClick);
+if (el.combineTradesBtn) {
+  el.combineTradesBtn.addEventListener("click", handleCombineTradesClick);
+}
 
 init();

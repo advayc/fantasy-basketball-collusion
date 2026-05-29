@@ -226,6 +226,35 @@ function weekMeta(week) {
   return WEEK_META.find((w) => w.week === week) || WEEK_META[0];
 }
 
+function localIsoDate(input = new Date()) {
+  const year = input.getFullYear();
+  const month = String(input.getMonth() + 1).padStart(2, "0");
+  const day = String(input.getDate()).padStart(2, "0");
+  return `${year}-${month}-${day}`;
+}
+
+function currentWeekFromDate(input = new Date()) {
+  const today = localIsoDate(input);
+  const first = WEEK_META[0];
+  const last = WEEK_META[WEEK_META.length - 1];
+
+  if (!first || !last) return 1;
+  if (today <= first.start) return first.week;
+  if (today >= last.end) return last.week;
+
+  const exact = WEEK_META.find((w) => today >= w.start && today <= w.end);
+  if (exact) return exact.week;
+
+  const next = WEEK_META.find((w) => today < w.start);
+  return next?.week || last.week;
+}
+
+function clampWeek(value) {
+  const firstWeek = WEEK_META[0]?.week || 1;
+  const lastWeek = WEEK_META[WEEK_META.length - 1]?.week || 12;
+  return Math.max(firstWeek, Math.min(lastWeek, value));
+}
+
 function gamesForPlayerWeek(player, week, matchupPeriods, proTeams) {
   const fallback = GAMES_BY_WEEK[week] || 3;
   const proTeamId = safeNum(player.proTeamId, 0);
@@ -358,6 +387,7 @@ app.get("/api/status", async (_req, res) => {
 
 app.get("/api/bootstrap", async (_req, res) => {
   const { teams } = await loadTeams(1);
+  const currentWeek = currentWeekFromDate();
   const options = WEEK_META.map((w) => ({
     week: w.week,
     label: `Week ${w.week} (${w.start.slice(5)} to ${w.end.slice(5)})`,
@@ -370,13 +400,13 @@ app.get("/api/bootstrap", async (_req, res) => {
     leagueId: LEAGUE_ID,
     teams: teams.map((t) => ({ code: t.code, name: t.name })),
     weekOptions: options,
-    currentWeek: 5,
+    currentWeek,
   });
 });
 
 app.get("/api/planner", async (req, res) => {
-  const sendWeek = safeNum(req.query.week, 5);
-  const targetWeek = Math.min(12, sendWeek + 1);
+  const sendWeek = clampWeek(safeNum(req.query.week, currentWeekFromDate()));
+  const targetWeek = Math.min(WEEK_META[WEEK_META.length - 1]?.week || 12, sendWeek + 1);
   const meta = weekMeta(targetWeek);
   const sendMeta = weekMeta(sendWeek);
   const data = await loadTeams(targetWeek);

@@ -16,9 +16,10 @@ const state = {
   weekOptions: [],
   currentWeek: 5,
   latestData: null,
-  pointsSort: {
-    SPY: "none",
-    CMO: "none",
+  selectedOptionIndex: 0,
+  sort: {
+    key: "slot",
+    dir: "desc",
   },
 };
 
@@ -53,19 +54,25 @@ function slotRank(slot) {
   return 4;
 }
 
-function sortPlayers(players, mode) {
+function sortPlayers(players, sortState) {
   const ir = players.filter((p) => p.isIR || p.slot === "IR");
   const active = players.filter((p) => !p.isIR && p.slot !== "IR");
   const list = active.slice();
+  const key = sortState?.key || "slot";
+  const dir = sortState?.dir || "desc";
+  const mult = dir === "asc" ? 1 : -1;
 
-  if (mode === "asc") {
-    list.sort((a, b) => a.weekValue - b.weekValue);
-  } else if (mode === "desc") {
-    list.sort((a, b) => b.weekValue - a.weekValue);
-  } else {
+  if (key === "slot") {
     list.sort((a, b) => {
       const r = slotRank(a.slot) - slotRank(b.slot);
       if (r !== 0) return r;
+      return (a.sourceIndex || 0) - (b.sourceIndex || 0);
+    });
+  } else {
+    list.sort((a, b) => {
+      const av = Number(a[key] || 0);
+      const bv = Number(b[key] || 0);
+      if (av !== bv) return (av - bv) * mult;
       return (a.sourceIndex || 0) - (b.sourceIndex || 0);
     });
   }
@@ -75,38 +82,16 @@ function sortPlayers(players, mode) {
 }
 
 function nextSort(mode) {
-  if (mode === "none") return "desc";
-  if (mode === "desc") return "asc";
-  return "none";
+  return mode === "desc" ? "asc" : "desc";
 }
 
-function pickDistinctOptions(bestTrade, alternatives, limit = 3) {
-  const pool = [bestTrade, ...(alternatives || [])].filter(Boolean);
-  const picked = [];
-  const usedSpy = new Set();
-  const usedCmo = new Set();
-
-  for (const option of pool) {
-    const spyId = String(option?.fromSpy?.id || "");
-    const cmoId = String(option?.fromCmo?.id || "");
-    if (!spyId || !cmoId) continue;
-    if (usedSpy.has(spyId) || usedCmo.has(cmoId)) continue;
-    picked.push(option);
-    usedSpy.add(spyId);
-    usedCmo.add(cmoId);
-    if (picked.length >= limit) break;
-  }
-
-  return picked;
-}
-
-function renderTradeCard(title, trade, spyName, cmoName, extra = "") {
+function renderTradeCard(title, trade, spyName, cmoName, optionIndex, active = false, extra = "") {
   if (!trade) {
-    return `<article class="trade-card"><h4>${title}</h4><p class="tiny">No trade found.</p></article>`;
+    return `<article class="trade-card ${extra}" data-option="${optionIndex}"><h4>${title}</h4><p class="tiny">No trade found.</p></article>`;
   }
 
   return `
-    <article class="trade-card ${extra}">
+    <article class="trade-card ${active ? "active" : ""} ${extra}" data-option="${optionIndex}">
       <h4>${title}</h4>
       <div class="swap-row">
         <div class="player-chip swap-out roomy">
@@ -129,15 +114,14 @@ function renderTradeCard(title, trade, spyName, cmoName, extra = "") {
 }
 
 function rosterTable(team, teamCode, outgoingId, outgoingToName, incomingPlayer, incomingFromName, maxGames) {
-  const mode = state.pointsSort[teamCode] || "none";
-  const sorted = sortPlayers(team.players, mode);
+  const sorted = sortPlayers(team.players, state.sort);
 
   const rows = sorted
     .map((p) => {
       const isOutgoing = p.id === outgoingId;
       const tone = gameToneClass(p.games, maxGames);
       const tradedText = isOutgoing ? `<span class="trade-tag">Traded to ${outgoingToName}</span>` : "";
-      const irText = p.isIR ? `<span class="ir-text">IR</span>` : "";
+      const irText = "";
       return `
         <div class="roster-row ${isOutgoing ? "traded-row" : ""}">
           <div class="cell slot">${p.slot || "Bench"}</div>
@@ -162,9 +146,9 @@ function rosterTable(team, teamCode, outgoingId, outgoingToName, incomingPlayer,
     <div class="roster-header">
       <div class="cell slot">Slot</div>
       <div class="cell player">Player</div>
-      <div class="cell avg">Avg</div>
-      <div class="cell games">Gms</div>
-      <button class="cell pts points-toggle" data-team="${teamCode}">Points</button>
+      <button class="cell avg sort-toggle" data-key="avg">Avg</button>
+      <button class="cell games sort-toggle" data-key="games">Gms</button>
+      <button class="cell pts sort-toggle" data-key="weekValue">Points</button>
     </div>
     ${rows}
   `;
@@ -196,11 +180,14 @@ function render(data) {
     </table>
   `;
 
-  const options = pickDistinctOptions(data.bestTrade, data.alternatives, 3);
+  const options = [data.bestTrade, ...(data.alternatives || [])].filter(Boolean).slice(0, 3);
+  if (state.selectedOptionIndex >= options.length) state.selectedOptionIndex = 0;
+  const selectedTrade = options[state.selectedOptionIndex] || options[0] || null;
+
   el.tradeCards.innerHTML = [
-    renderTradeCard("Option 1", options[0], data.spy.name, data.cmo.name, "option-1"),
-    renderTradeCard("Option 2", options[1], data.spy.name, data.cmo.name),
-    renderTradeCard("Option 3", options[2], data.spy.name, data.cmo.name),
+    renderTradeCard("Option 1", options[0], data.spy.name, data.cmo.name, 0, state.selectedOptionIndex === 0, "option-1"),
+    renderTradeCard("Option 2", options[1], data.spy.name, data.cmo.name, 1, state.selectedOptionIndex === 1),
+    renderTradeCard("Option 3", options[2], data.spy.name, data.cmo.name, 2, state.selectedOptionIndex === 2),
   ].join("");
 
   el.impactTable.innerHTML = `
@@ -209,7 +196,7 @@ function render(data) {
         <tr>
           <th>Team</th>
           <th>Before</th>
-          <th>After (Option 1)</th>
+          <th>After (Selected)</th>
           <th>Delta</th>
         </tr>
       </thead>
@@ -217,14 +204,14 @@ function render(data) {
         <tr>
           <td>${data.spy.name}</td>
           <td>${fmtNum(data.spy.base)}</td>
-          <td>${fmtNum(data.spy.after)}</td>
-          <td>${data.spy.delta >= 0 ? "+" : ""}${fmtNum(data.spy.delta)}</td>
+          <td>${fmtNum(data.spy.base + (selectedTrade?.gainSpy || 0))}</td>
+          <td>${(selectedTrade?.gainSpy || 0) >= 0 ? "+" : ""}${fmtNum(selectedTrade?.gainSpy || 0)}</td>
         </tr>
         <tr>
           <td>${data.cmo.name}</td>
           <td>${fmtNum(data.cmo.base)}</td>
-          <td>${fmtNum(data.cmo.after)}</td>
-          <td>${data.cmo.delta >= 0 ? "+" : ""}${fmtNum(data.cmo.delta)}</td>
+          <td>${fmtNum(data.cmo.base + (selectedTrade?.gainCmo || 0))}</td>
+          <td>${(selectedTrade?.gainCmo || 0) >= 0 ? "+" : ""}${fmtNum(selectedTrade?.gainCmo || 0)}</td>
         </tr>
       </tbody>
     </table>
@@ -239,9 +226,9 @@ function render(data) {
   el.spyRoster.innerHTML = rosterTable(
     data.spy,
     "SPY",
-    data.bestTrade?.fromSpy?.id || "",
+    selectedTrade?.fromSpy?.id || "",
     data.cmo.name,
-    data.bestTrade?.fromCmo || null,
+    selectedTrade?.fromCmo || null,
     data.cmo.name,
     maxGames,
   );
@@ -249,9 +236,9 @@ function render(data) {
   el.cmoRoster.innerHTML = rosterTable(
     data.cmo,
     "CMO",
-    data.bestTrade?.fromCmo?.id || "",
+    selectedTrade?.fromCmo?.id || "",
     data.spy.name,
-    data.bestTrade?.fromSpy || null,
+    selectedTrade?.fromSpy || null,
     data.spy.name,
     maxGames,
   );
@@ -274,11 +261,25 @@ function renderWeeks(options, currentWeek) {
 }
 
 function handleSortClick(e) {
-  const btn = e.target.closest(".points-toggle");
+  const btn = e.target.closest(".sort-toggle");
   if (!btn) return;
-  const team = btn.getAttribute("data-team");
-  if (!team) return;
-  state.pointsSort[team] = nextSort(state.pointsSort[team] || "none");
+  const key = btn.getAttribute("data-key");
+  if (!key) return;
+  if (state.sort.key === key) {
+    state.sort.dir = nextSort(state.sort.dir);
+  } else {
+    state.sort.key = key;
+    state.sort.dir = "desc";
+  }
+  if (state.latestData) render(state.latestData);
+}
+
+function handleOptionClick(e) {
+  const card = e.target.closest(".trade-card[data-option]");
+  if (!card) return;
+  const idx = Number(card.getAttribute("data-option"));
+  if (!Number.isInteger(idx)) return;
+  state.selectedOptionIndex = idx;
   if (state.latestData) render(state.latestData);
 }
 
@@ -307,5 +308,6 @@ el.refreshBtn.addEventListener("click", () => {
 
 el.spyRoster.addEventListener("click", handleSortClick);
 el.cmoRoster.addEventListener("click", handleSortClick);
+el.tradeCards.addEventListener("click", handleOptionClick);
 
 init();

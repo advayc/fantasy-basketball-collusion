@@ -199,6 +199,12 @@ th {
   border-radius: 14px;
   padding: 12px;
   background: #fff;
+  cursor: pointer;
+}
+
+.trade-card.active {
+  border-color: #0f766e;
+  box-shadow: 0 0 0 1px #0f766e inset;
 }
 
 .swap-out {
@@ -283,27 +289,28 @@ th {
   grid-template-columns: 64px 1fr 70px 70px 94px;
   gap: 8px;
   align-items: center;
-  padding: 8px 0;
+  padding: 6px 0 8px;
   border-top: 1px solid var(--line);
   border-bottom: 1px solid var(--line);
   margin-bottom: 4px;
 }
 
 .roster-header .cell {
-  font-size: 0.78rem;
-  text-transform: uppercase;
+  font-size: 0.84rem;
+  text-transform: none;
   color: var(--muted);
-  letter-spacing: 0.03em;
+  letter-spacing: 0;
 }
 
-.points-toggle {
+.sort-toggle {
   border: 0;
   border-radius: 8px;
   background: transparent;
   color: var(--muted);
   padding: 6px 10px;
   text-transform: none;
-  font-size: 0.78rem;
+  font-size: 0.84rem;
+  text-align: right;
 }
 
 .roster-row {
@@ -336,6 +343,12 @@ th {
 .cell.pts {
   font-family: "IBM Plex Mono", monospace;
   color: var(--muted);
+}
+
+.cell.avg,
+.cell.games,
+.cell.pts {
+  text-align: right;
 }
 
 .cell.player .name {

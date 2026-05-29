@@ -304,6 +304,17 @@ function evaluateBestTrade(spyPlayers, cmoPlayers, focusCode) {
     if (distinct.length >= 3) break;
   }
 
+  if (distinct.length < 3) {
+    for (const opt of options) {
+      const already = distinct.some(
+        (d) => String(d.fromSpy?.id || "") === String(opt.fromSpy?.id || "") && String(d.fromCmo?.id || "") === String(opt.fromCmo?.id || ""),
+      );
+      if (already) continue;
+      distinct.push(opt);
+      if (distinct.length >= 3) break;
+    }
+  }
+
   return {
     baseSpy,
     baseCmo,

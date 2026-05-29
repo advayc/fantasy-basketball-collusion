@@ -1,0 +1,71 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>SPY x Warren Trade Portal</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">WNBA Fantasy Portal</p>
+      <h1>SPY x Warren's Bays Planner</h1>
+      <p class="subhead">
+        Pick a week, view both full rosters, and get the top recommended swap for that week's focus team.
+      </p>
+    </section>
+
+    <section class="card connection">
+      <h2>Data</h2>
+      <div class="connection-grid">
+        <div>
+          <p id="apiStatus" class="status">Checking API connection...</p>
+          <p class="tiny">League ID: <code>1240842204</code></p>
+        </div>
+        <div class="control-actions">
+          <button id="refreshBtn">Refresh Data</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="card planner">
+      <h2>Weekly Planner</h2>
+      <div class="planner-controls">
+        <label>
+          Week
+          <select id="weekSelect"></select>
+        </label>
+      </div>
+
+      <div id="weekSummary" class="summary"></div>
+
+      <h3>When To Send Trade</h3>
+      <div id="timingTable"></div>
+
+      <h3>Best Trade</h3>
+      <div id="tradeCards" class="trade-cards"></div>
+
+      <h3>Projection Impact</h3>
+      <div id="impactTable"></div>
+
+      <h3>Full Team Rosters</h3>
+      <div class="team-panels">
+        <section class="team-panel">
+          <h4 id="spyTitle">SPY</h4>
+          <div id="spyRoster" class="roster-grid"></div>
+        </section>
+        <section class="team-panel">
+          <h4 id="cmoTitle">Warren's Bays</h4>
+          <div id="cmoRoster" class="roster-grid"></div>
+        </section>
+      </div>
+    </section>
+  </main>
+
+  <script src="./app.js"></script>
+</body>
+</html>

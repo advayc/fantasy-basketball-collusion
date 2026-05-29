@@ -1,0 +1,3 @@
+# fantasy-basketball-collusion
+
+Small utility for fantasy basketball trade planning and analysis using the WNBA fantasy basketball API. This project is intended to be used for fun and educational purposes only, and is not intended for commercial use or to be used in any way that violates the terms of service of the WNBA fantasy basketball platform, im not encouraging collusion in your leagues as this is simply a tool to help analyze potential trades for some matchups

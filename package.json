@@ -1,0 +1,14 @@
+{
+  "name": "wnba-weekly-trade-planner",
+  "version": "1.0.0",
+  "type": "module",
+  "private": true,
+  "scripts": {
+    "start": "node server.js"
+  },
+  "dependencies": {
+    "dotenv": "^17.4.2",
+    "espn-fantasy-wnba-api": "^1.0.0",
+    "express": "^4.19.2"
+  }
+}

@@ -294,27 +294,73 @@ function buildWeekPlayers(roster, week, matchupPeriods, proTeams) {
     }));
 }
 
+const STARTING_SLOTS = ["G", "G", "F/C", "F/C", "UTIL", "UTIL"];
+
+function isEligibleForSlot(player, slot) {
+  if (slot === "UTIL") return true;
+  const pos = safeNum(player?.pos, 0);
+  if (slot === "G") return pos === 1;
+  if (slot === "F/C") return pos === 2 || pos === 3;
+  return false;
+}
+
+function bestLineup(players) {
+  const active = players.filter((p) => !p.isIR && p.slot !== "IR");
+  if (active.length < STARTING_SLOTS.length) {
+    return { feasible: false, total: 0 };
+  }
+
+  let best = -Infinity;
+  const used = new Set();
+
+  function dfs(slotIdx, total) {
+    if (slotIdx >= STARTING_SLOTS.length) {
+      if (total > best) best = total;
+      return;
+    }
+
+    const slot = STARTING_SLOTS[slotIdx];
+    for (let i = 0; i < active.length; i += 1) {
+      const p = active[i];
+      const id = String(p.id || i);
+      if (used.has(id)) continue;
+      if (!isEligibleForSlot(p, slot)) continue;
+      used.add(id);
+      dfs(slotIdx + 1, total + safeNum(p.weekValue, 0));
+      used.delete(id);
+    }
+  }
+
+  dfs(0, 0);
+  if (best === -Infinity) {
+    return { feasible: false, total: 0 };
+  }
+
+  return { feasible: true, total: best };
+}
+
 function projectedTotal(players) {
-  return players
-    .slice()
-    .filter((p) => !p.isIR && p.slot !== "IR")
-    .sort((a, b) => b.weekValue - a.weekValue)
-    .slice(0, 6)
-    .reduce((sum, p) => sum + p.weekValue, 0);
+  return bestLineup(players).total;
 }
 
 function evaluateBestTrade(spyPlayers, cmoPlayers, focusCode) {
   const tradableSpy = spyPlayers.filter((p) => !p.isIR && p.slot !== "IR");
   const tradableCmo = cmoPlayers.filter((p) => !p.isIR && p.slot !== "IR");
-  const baseSpy = projectedTotal(spyPlayers);
-  const baseCmo = projectedTotal(cmoPlayers);
+  const baseSpyLineup = bestLineup(spyPlayers);
+  const baseCmoLineup = bestLineup(cmoPlayers);
+  const baseSpy = baseSpyLineup.total;
+  const baseCmo = baseCmoLineup.total;
   const options = [];
   for (const spyOut of tradableSpy) {
     for (const cmoOut of tradableCmo) {
       const newSpy = spyPlayers.map((p) => (p.id === spyOut.id ? cmoOut : p));
       const newCmo = cmoPlayers.map((p) => (p.id === cmoOut.id ? spyOut : p));
-      const gainSpy = projectedTotal(newSpy) - baseSpy;
-      const gainCmo = projectedTotal(newCmo) - baseCmo;
+      const nextSpyLineup = bestLineup(newSpy);
+      const nextCmoLineup = bestLineup(newCmo);
+      if (!nextSpyLineup.feasible || !nextCmoLineup.feasible) continue;
+
+      const gainSpy = nextSpyLineup.total - baseSpy;
+      const gainCmo = nextCmoLineup.total - baseCmo;
       const focusGain = focusCode === "SPY" ? gainSpy : gainCmo;
       const otherGain = focusCode === "SPY" ? gainCmo : gainSpy;
       const score = focusGain * 1.5 - Math.max(0, -otherGain) * 0.35;

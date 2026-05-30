@@ -533,6 +533,10 @@ th {
   flex-wrap: wrap;
 }
 
+.board-controls {
+  margin-top: 12px;
+}
+
 .medal {
   display: inline-flex;
   align-items: center;

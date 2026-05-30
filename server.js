@@ -307,15 +307,20 @@ function isEligibleForSlot(player, slot) {
 function bestLineup(players) {
   const active = players.filter((p) => !p.isIR && p.slot !== "IR");
   if (active.length < STARTING_SLOTS.length) {
-    return { feasible: false, total: 0 };
+    return { feasible: false, total: 0, playerIds: [] };
   }
 
   let best = -Infinity;
+  let bestIds = [];
   const used = new Set();
+  const path = [];
 
   function dfs(slotIdx, total) {
     if (slotIdx >= STARTING_SLOTS.length) {
-      if (total > best) best = total;
+      if (total > best) {
+        best = total;
+        bestIds = path.slice();
+      }
       return;
     }
 
@@ -326,17 +331,19 @@ function bestLineup(players) {
       if (used.has(id)) continue;
       if (!isEligibleForSlot(p, slot)) continue;
       used.add(id);
+      path.push(id);
       dfs(slotIdx + 1, total + safeNum(p.weekValue, 0));
+      path.pop();
       used.delete(id);
     }
   }
 
   dfs(0, 0);
   if (best === -Infinity) {
-    return { feasible: false, total: 0 };
+    return { feasible: false, total: 0, playerIds: [] };
   }
 
-  return { feasible: true, total: best };
+  return { feasible: true, total: best, playerIds: bestIds };
 }
 
 function projectedTotal(players) {
@@ -363,6 +370,7 @@ function evaluateBestTrade(spyPlayers, cmoPlayers, focusCode) {
       const gainCmo = nextCmoLineup.total - baseCmo;
       const focusGain = focusCode === "SPY" ? gainSpy : gainCmo;
       const otherGain = focusCode === "SPY" ? gainCmo : gainSpy;
+      if (focusGain <= 0) continue;
       const score = focusGain * 1.5 - Math.max(0, -otherGain) * 0.35;
       options.push({
         fromSpy: spyOut,
@@ -370,6 +378,7 @@ function evaluateBestTrade(spyPlayers, cmoPlayers, focusCode) {
         gainSpy,
         gainCmo,
         score,
+        focusGain,
       });
     }
   }
@@ -383,7 +392,11 @@ function evaluateBestTrade(spyPlayers, cmoPlayers, focusCode) {
     };
   }
 
-  options.sort((a, b) => b.score - a.score);
+  options.sort((a, b) => {
+    if (b.focusGain !== a.focusGain) return b.focusGain - a.focusGain;
+    if (b.score !== a.score) return b.score - a.score;
+    return (b.gainSpy + b.gainCmo) - (a.gainSpy + a.gainCmo);
+  });
   const best = options[0] || null;
 
   const distinct = [];
@@ -417,6 +430,37 @@ function evaluateBestTrade(spyPlayers, cmoPlayers, focusCode) {
     best: distinct[0] || best,
     alternatives: distinct.slice(1),
   };
+}
+
+function sortForWeeklyMax(players, starterIds) {
+  const starterSet = new Set(starterIds.map((id) => String(id)));
+  return players
+    .map((p) => ({
+      ...p,
+      isStarter: starterSet.has(String(p.id || "")),
+      injuryLabel: p.isIR || p.slot === "IR" ? p.injuryStatus || "Injured" : "",
+    }))
+    .sort((a, b) => {
+      const aUnavailable = a.isIR || a.slot === "IR";
+      const bUnavailable = b.isIR || b.slot === "IR";
+      if (aUnavailable !== bUnavailable) return aUnavailable ? 1 : -1;
+      if (b.weekValue !== a.weekValue) return b.weekValue - a.weekValue;
+      if (b.games !== a.games) return b.games - a.games;
+      return b.avg - a.avg;
+    })
+    .map((p, idx) => ({
+      id: p.id,
+      name: p.name,
+      avg: p.avg,
+      games: p.games,
+      weekValue: p.weekValue,
+      slot: p.slot,
+      isIR: p.isIR,
+      injuryStatus: p.injuryStatus,
+      injuryLabel: p.injuryLabel,
+      isStarter: p.isStarter,
+      rank: idx + 1,
+    }));
 }
 
 app.get("/api/status", async (_req, res) => {
@@ -501,6 +545,47 @@ app.get("/api/planner", async (req, res) => {
     },
     bestTrade: trade.best,
     alternatives: trade.alternatives,
+  });
+});
+
+app.get("/api/weekly-max", async (_req, res) => {
+  const weekPlans = [];
+
+  for (const w of WEEK_META) {
+    const data = await loadTeams(w.week);
+    const teams = data.teams;
+    const spy = teams.find((t) => t.code === "SPY") || SEED_TEAMS[0];
+    const cmo = teams.find((t) => t.code === "CMO") || SEED_TEAMS[1];
+
+    const spyPlayers = buildWeekPlayers(spy.roster, w.week, data.matchupPeriods, data.proTeams);
+    const cmoPlayers = buildWeekPlayers(cmo.roster, w.week, data.matchupPeriods, data.proTeams);
+
+    const spyLineup = bestLineup(spyPlayers);
+    const cmoLineup = bestLineup(cmoPlayers);
+
+    weekPlans.push({
+      week: w.week,
+      start: w.start,
+      end: w.end,
+      focusCode: w.focus || "",
+      spy: {
+        code: spy.code,
+        name: spy.name,
+        total: spyLineup.total,
+        players: sortForWeeklyMax(spyPlayers, spyLineup.playerIds),
+      },
+      cmo: {
+        code: cmo.code,
+        name: cmo.name,
+        total: cmoLineup.total,
+        players: sortForWeeklyMax(cmoPlayers, cmoLineup.playerIds),
+      },
+    });
+  }
+
+  res.json({
+    generatedAt: new Date().toISOString(),
+    weeks: weekPlans,
   });
 });
 

@@ -421,6 +421,143 @@ th {
   text-align: center;
 }
 
+.hero-link-wrap {
+  margin: 14px 0 0;
+}
+
+.hero-link {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid color-mix(in srgb, var(--accent) 36%, transparent);
+  padding-bottom: 2px;
+}
+
+.hero-link:hover {
+  border-bottom-color: var(--accent);
+}
+
+.max-weeks {
+  display: grid;
+  gap: 14px;
+  margin-top: 14px;
+}
+
+.max-week-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.max-week-head h3 {
+  margin: 0;
+}
+
+.max-team-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 10px;
+}
+
+.max-team-card {
+  border: 1px solid var(--line);
+  border-radius: 14px;
+  background: #fff;
+  padding: 10px;
+}
+
+.max-team-head h4 {
+  margin: 0;
+}
+
+.max-team-head p {
+  margin: 4px 0 8px;
+  font-size: 0.82rem;
+  color: var(--muted);
+}
+
+.table-wrap {
+  overflow-x: auto;
+}
+
+.max-name {
+  font-size: 0.9rem;
+}
+
+.max-meta {
+  margin-top: 4px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.chip {
+  display: inline-block;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.72rem;
+  font-family: "IBM Plex Mono", monospace;
+}
+
+.chip.starter {
+  background: #dcfce7;
+  color: #166534;
+}
+
+.chip.injury {
+  background: #ffe4e6;
+  color: #9f1239;
+}
+
+.rank-1 {
+  background: #ecfdf5;
+}
+
+.rank-2 {
+  background: #f0fdfa;
+}
+
+.rank-3 {
+  background: #f0f9ff;
+}
+
+.max-legend {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.medal {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  min-width: 34px;
+  padding: 2px 8px;
+  font-size: 0.74rem;
+}
+
+.medal.r1 {
+  background: #bbf7d0;
+  color: #14532d;
+}
+
+.medal.r2 {
+  background: #99f6e4;
+  color: #115e59;
+}
+
+.medal.r3 {
+  background: #bae6fd;
+  color: #0c4a6e;
+}
+
 @media (min-width: 900px) {
   .trade-cards {
     grid-template-columns: repeat(3, 1fr);
@@ -430,7 +567,8 @@ th {
 @media (max-width: 760px) {
   .planner-controls,
   .trade-cards,
-  .team-panels {
+  .team-panels,
+  .max-team-grid {
     grid-template-columns: 1fr;
   }
 

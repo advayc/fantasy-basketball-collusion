@@ -1,0 +1,40 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Weekly Max Points Board</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;700&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet" />
+  <link rel="stylesheet" href="/styles.css?v=20260530-1" />
+</head>
+<body>
+  <main class="page">
+    <section class="hero">
+      <p class="eyebrow">WNBA Fantasy Portal</p>
+      <h1>Weekly Max Points Board</h1>
+      <p class="subhead">Every matchup week, sorted by projected weekly points (average x games), with injuries and lineup feasibility factored in.</p>
+      <p class="hero-link-wrap"><a class="hero-link" href="/index.html">Back To Trade Planner</a></p>
+    </section>
+
+    <section class="card connection">
+      <h2>Data</h2>
+      <div class="connection-grid">
+        <div>
+          <p id="apiStatus" class="status">Checking API connection...</p>
+          <p class="tiny">Generated: <span id="generatedAt">-</span></p>
+        </div>
+        <div class="control-actions">
+          <button id="refreshBtn" type="button">Refresh Board</button>
+        </div>
+      </div>
+      <p class="tiny max-legend"><span class="medal r1">#1</span> <span class="medal r2">#2</span> <span class="medal r3">#3</span> Top 3 active scorers for each team and week.</p>
+    </section>
+
+    <section id="weekBoards" class="max-weeks"></section>
+  </main>
+
+  <script src="/weekly-max.js?v=20260530-1"></script>
+</body>
+</html>

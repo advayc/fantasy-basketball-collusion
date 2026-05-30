@@ -591,8 +591,14 @@ app.get("/api/weekly-max", async (_req, res) => {
 
 app.get("/", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
 app.get("/index.html", (_req, res) => res.sendFile(path.join(__dirname, "index.html")));
+app.get("/weekly-max", (_req, res) => res.sendFile(path.join(__dirname, "weekly-max.html")));
+app.get("/weekly-max.html", (_req, res) => res.sendFile(path.join(__dirname, "weekly-max.html")));
 
-const port = safeNum(process.env.PORT, 8787);
-app.listen(port, () => {
-  console.log(`WNBA planner running on http://localhost:${port}`);
-});
+if (process.env.VERCEL !== "1") {
+  const port = safeNum(process.env.PORT, 8787);
+  app.listen(port, () => {
+    console.log(`WNBA planner running on http://localhost:${port}`);
+  });
+}
+
+export default app;

@@ -572,6 +572,26 @@ th {
     grid-template-columns: 1fr;
   }
 
+  .max-week-card {
+    padding: 12px;
+  }
+
+  .max-team-card {
+    padding: 8px;
+  }
+
+  .max-team-head p {
+    font-size: 0.78rem;
+  }
+
+  .max-name {
+    font-size: 0.86rem;
+  }
+
+  .max-meta .chip {
+    font-size: 0.68rem;
+  }
+
   .roster-header,
   .roster-row {
     grid-template-columns: 52px 1fr 58px 58px 78px;

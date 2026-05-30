@@ -16,6 +16,14 @@
     {
       "src": "app.js",
       "use": "@vercel/static"
+    },
+    {
+      "src": "weekly-max.html",
+      "use": "@vercel/static"
+    },
+    {
+      "src": "weekly-max.js",
+      "use": "@vercel/static"
     }
   ],
   "routes": [
@@ -28,11 +36,27 @@
       "dest": "/app.js"
     },
     {
+      "src": "/weekly-max.js",
+      "dest": "/weekly-max.js"
+    },
+    {
       "src": "/api/(.*)",
       "dest": "/server.js"
     },
     {
+      "src": "/weekly-max",
+      "dest": "/weekly-max.html"
+    },
+    {
+      "src": "/weekly-max.html",
+      "dest": "/weekly-max.html"
+    },
+    {
       "src": "/",
+      "dest": "/index.html"
+    },
+    {
+      "src": "/(.*)",
       "dest": "/index.html"
     }
   ]

@@ -36,6 +36,23 @@ function fmtNum(n) {
   return Number(n || 0).toFixed(1);
 }
 
+function fmtGameDays(gameDates = []) {
+  const list = Array.isArray(gameDates) ? gameDates.filter(Boolean) : [];
+  if (!list.length) return "Days unavailable";
+  return list
+    .map((date) => {
+      const parsed = new Date(`${String(date).slice(0, 10)}T00:00:00Z`);
+      if (Number.isNaN(parsed.getTime())) return String(date).slice(0, 10);
+      return parsed.toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      });
+    })
+    .join(", ");
+}
+
 function setStatus(text, level = "") {
   el.apiStatus.textContent = text;
   el.apiStatus.className = `status ${level}`.trim();
@@ -99,14 +116,16 @@ function renderTradeCard(title, trade, spyName, cmoName, optionIndex, active = f
         <div class="player-chip swap-out roomy">
           <div class="player-meta">
             <div class="name">${trade.fromSpy.name}</div>
-            <div class="sub">From ${spyName} | Avg ${fmtNum(trade.fromSpy.avg)} | ${trade.fromSpy.games} games</div>
+            <div class="sub" title="${fmtGameDays(trade.fromSpy.gameDates)}">From ${spyName} | Avg ${fmtNum(trade.fromSpy.avg)} | ${trade.fromSpy.games} games</div>
+            <div class="tiny game-days">${fmtGameDays(trade.fromSpy.gameDates)}</div>
           </div>
         </div>
         <div class="arrow">for</div>
         <div class="player-chip swap-in roomy">
           <div class="player-meta">
             <div class="name">${trade.fromCmo.name}</div>
-            <div class="sub">From ${cmoName} | Avg ${fmtNum(trade.fromCmo.avg)} | ${trade.fromCmo.games} games</div>
+            <div class="sub" title="${fmtGameDays(trade.fromCmo.gameDates)}">From ${cmoName} | Avg ${fmtNum(trade.fromCmo.avg)} | ${trade.fromCmo.games} games</div>
+            <div class="tiny game-days">${fmtGameDays(trade.fromCmo.gameDates)}</div>
           </div>
         </div>
       </div>
@@ -166,13 +185,15 @@ function rosterTable(team, teamCode, outgoingIds, outgoingToName, incomingPlayer
       const isOutgoing = outgoingSet.has(String(p.id));
       const tone = gameToneClass(p.games, maxGames);
       const tradedText = isOutgoing ? `<span class="trade-tag">Traded to ${outgoingToName}</span>` : "";
+      const gameDays = fmtGameDays(p.gameDates);
       const irText = "";
       return `
-        <div class="roster-row ${isOutgoing ? "traded-row" : ""}">
+        <div class="roster-row ${isOutgoing ? "traded-row" : ""}" title="${gameDays}">
           <div class="cell slot">${p.slot || "Bench"}</div>
           <div class="cell player">
             <div class="name">${p.name}</div>
             <div class="sub">${tradedText} ${irText}</div>
+            <div class="tiny game-days">${gameDays}</div>
           </div>
           <div class="cell avg">${fmtNum(p.avg)}</div>
           <div class="cell games ${tone}">${p.games}</div>

@@ -133,6 +133,113 @@ function slotLabel(lineupSlotId) {
   return "Bench";
 }
 
+function normalizeTeamCode(value) {
+  const text = String(value || "")
+    .trim()
+    .toUpperCase()
+    .replace(/[^A-Z]/g, "");
+  return text && text !== "BYE" ? text : "";
+}
+
+function parseDateKey(value) {
+  if (value == null) return "";
+  if (value instanceof Date && !Number.isNaN(value.getTime())) return value.toISOString().slice(0, 10);
+
+  if (typeof value === "number" && Number.isFinite(value)) {
+    const asDate = new Date(value > 1e12 ? value : value * 1000);
+    if (!Number.isNaN(asDate.getTime())) return asDate.toISOString().slice(0, 10);
+  }
+
+  const text = String(value).trim();
+  if (!text) return "";
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) return text;
+  if (/^\d{8}$/.test(text)) return `${text.slice(0, 4)}-${text.slice(4, 6)}-${text.slice(6, 8)}`;
+
+  const parsed = new Date(text);
+  if (!Number.isNaN(parsed.getTime())) return parsed.toISOString().slice(0, 10);
+  return "";
+}
+
+function proTeamCode(team = {}) {
+  const candidates = [
+    team.abbrev,
+    team.abbreviation,
+    team.shortName,
+    team.location,
+    team.name,
+    team.team,
+    team.displayName,
+  ];
+  for (const candidate of candidates) {
+    const code = normalizeTeamCode(candidate);
+    if (code && code.length <= 4) return code;
+  }
+  return "";
+}
+
+function flattenScheduleGames(proTeams = []) {
+  const teamMap = new Map();
+  for (const team of proTeams) {
+    teamMap.set(safeNum(team?.id, 0), proTeamCode(team));
+  }
+
+  const out = [];
+  const seen = new Set();
+  for (const team of proTeams) {
+    const periods = team?.proGamesByScoringPeriod || {};
+    for (const [period, games] of Object.entries(periods)) {
+      if (!Array.isArray(games)) continue;
+      for (const game of games) {
+        if (!game || typeof game !== "object") continue;
+        const homeId = safeNum(game.homeProTeamId || game.homeTeamId || game.home || 0, 0);
+        const awayId = safeNum(game.awayProTeamId || game.awayTeamId || game.away || 0, 0);
+        const home = normalizeTeamCode(game.homeAbbrev || game.homeTeam || game.home_team) || teamMap.get(homeId) || "";
+        const away = normalizeTeamCode(game.awayAbbrev || game.awayTeam || game.away_team) || teamMap.get(awayId) || "";
+        const date =
+          parseDateKey(game.date) ||
+          parseDateKey(game.startDate) ||
+          parseDateKey(game.startTime) ||
+          parseDateKey(game.dateUTC) ||
+          parseDateKey(game.gameDate);
+        if (!date || (!home && !away)) continue;
+        const dedupe = `${period}|${date}|${home}|${away}`;
+        if (seen.has(dedupe)) continue;
+        seen.add(dedupe);
+        out.push({
+          period: safeNum(period, 0),
+          date,
+          home,
+          away,
+        });
+      }
+    }
+  }
+  return out;
+}
+
+function weekDateRange(week) {
+  const meta = weekMeta(week);
+  return {
+    start: parseDateKey(meta?.start),
+    end: parseDateKey(meta?.end),
+  };
+}
+
+function gameDatesForTeamWeek(teamCode, week, scheduleGames = []) {
+  const code = normalizeTeamCode(teamCode);
+  if (!code) return [];
+  const range = weekDateRange(week);
+  if (!range.start || !range.end) return [];
+
+  const dates = scheduleGames
+    .filter((game) => game.date && game.date >= range.start && game.date <= range.end)
+    .filter((game) => game.home === code || game.away === code)
+    .map((game) => game.date)
+    .filter(Boolean);
+
+  return [...new Set(dates)].sort();
+}
+
 function playerAverageFromStats(player) {
   const season = safeNum(process.env.SEASON, CURRENT_YEAR);
   const stats = Array.isArray(player?.stats) ? player.stats : [];
@@ -182,6 +289,7 @@ function normalizeLiveTeams(rawLeague) {
         pos: safeNum(player.defaultPositionId, 0),
         position: positionLabel(player.defaultPositionId),
         proTeamId: safeNum(player.proTeamId, 0),
+        proTeamAbbrev: normalizeTeamCode(player.proTeamAbbreviation || player.proTeam),
         lineupSlotId,
         slot: slotLabel(lineupSlotId),
         isIR,
@@ -210,6 +318,8 @@ async function loadTeams(week) {
         teams: normalized,
         matchupPeriods: leagueSettings?.settings?.scheduleSettings?.matchupPeriods || {},
         proTeams: proSchedules?.settings?.proTeams || [],
+        scheduleGames: flattenScheduleGames(proSchedules?.settings?.proTeams || []),
+        source: "live",
       };
     });
     return value;
@@ -218,6 +328,8 @@ async function loadTeams(week) {
       teams: SEED_TEAMS,
       matchupPeriods: {},
       proTeams: [],
+      scheduleGames: [],
+      source: "seed",
     };
   }
 }
@@ -276,22 +388,29 @@ function gamesForPlayerWeek(player, week, matchupPeriods, proTeams) {
   return total || fallback;
 }
 
-function buildWeekPlayers(roster, week, matchupPeriods, proTeams) {
+function buildWeekPlayers(roster, week, matchupPeriods, proTeams, scheduleGames = []) {
   return roster
-    .map((p, idx) => ({
-      id: String(p.id || ""),
-      name: p.name,
-      avg: safeNum(p.avg, 0),
-      pos: safeNum(p.pos, 0),
-      position: p.position || positionLabel(p.pos),
-      slot: p.slot || slotLabel(p.lineupSlotId),
-      isIR: Boolean(p.isIR),
-      injuryStatus: p.injuryStatus || "NORMAL",
-      sourceIndex: safeNum(p.sourceIndex, idx),
-      games: gamesForPlayerWeek(p, week, matchupPeriods, proTeams),
-      weekValue: safeNum(p.avg, 0) * gamesForPlayerWeek(p, week, matchupPeriods, proTeams),
-      headshot: normalizeHeadshot(p.id),
-    }));
+    .map((p, idx) => {
+      const teamCode = normalizeTeamCode(p.proTeamAbbrev || p.proTeam || p.proTeamCode);
+      const weekDates = gameDatesForTeamWeek(teamCode, week, scheduleGames);
+      const games = weekDates.length || gamesForPlayerWeek(p, week, matchupPeriods, proTeams);
+      return {
+        id: String(p.id || ""),
+        name: p.name,
+        avg: safeNum(p.avg, 0),
+        pos: safeNum(p.pos, 0),
+        position: p.position || positionLabel(p.pos),
+        slot: p.slot || slotLabel(p.lineupSlotId),
+        isIR: Boolean(p.isIR),
+        injuryStatus: p.injuryStatus || "NORMAL",
+        sourceIndex: safeNum(p.sourceIndex, idx),
+        games,
+        gameDates: weekDates,
+        weekValue: safeNum(p.avg, 0) * games,
+        proTeam: teamCode,
+        headshot: normalizeHeadshot(p.id),
+      };
+    });
 }
 
 const STARTING_SLOTS = ["G", "G", "F/C", "F/C", "UTIL", "UTIL"];
@@ -504,8 +623,8 @@ app.get("/api/planner", async (req, res) => {
   const spy = teams.find((t) => t.code === "SPY") || SEED_TEAMS[0];
   const cmo = teams.find((t) => t.code === "CMO") || SEED_TEAMS[1];
 
-  const spyPlayers = buildWeekPlayers(spy.roster, targetWeek, data.matchupPeriods, data.proTeams);
-  const cmoPlayers = buildWeekPlayers(cmo.roster, targetWeek, data.matchupPeriods, data.proTeams);
+  const spyPlayers = buildWeekPlayers(spy.roster, targetWeek, data.matchupPeriods, data.proTeams, data.scheduleGames);
+  const cmoPlayers = buildWeekPlayers(cmo.roster, targetWeek, data.matchupPeriods, data.proTeams, data.scheduleGames);
   const focusCode = meta.focus || (projectedTotal(spyPlayers) < projectedTotal(cmoPlayers) ? "SPY" : "CMO");
   const trade = evaluateBestTrade(spyPlayers, cmoPlayers, focusCode);
 
@@ -548,6 +667,92 @@ app.get("/api/planner", async (req, res) => {
   });
 });
 
+app.get("/api/matchups", async (req, res) => {
+  const weeksRaw = String(req.query.weeks || req.query.week || "").trim();
+  const teamsRaw = String(req.query.teams || "").trim();
+
+  const weeks = (weeksRaw ? weeksRaw.split(",") : [])
+    .map((value) => clampWeek(safeNum(value, 0)))
+    .filter((value) => value > 0);
+  const selectedWeeks = weeks.length ? [...new Set(weeks)] : [clampWeek(currentWeekFromDate())];
+
+  const requestedTeams = teamsRaw
+    ? teamsRaw
+        .split(",")
+        .map((value) => normalizeTeamCode(value))
+        .filter(Boolean)
+    : [];
+
+  const weekMetaPayload = selectedWeeks.map((week) => {
+    const meta = weekMeta(week);
+    return {
+      week,
+      startDate: meta?.start || "",
+      endDate: meta?.end || "",
+      focus: meta?.focus || "",
+    };
+  });
+
+  try {
+    const matchups = [];
+    let source = "seed";
+    for (const week of selectedWeeks) {
+      const data = await loadTeams(week);
+      source = data.source || source;
+      const teams = Array.isArray(data.teams) ? data.teams : [];
+      const codeSet = new Set(teams.map((team) => normalizeTeamCode(team.code)).filter(Boolean));
+      const teamFilter = requestedTeams.length ? requestedTeams.filter((code) => codeSet.has(code)) : [...codeSet];
+      const normalizedFilter = teamFilter.length ? teamFilter : [...codeSet];
+
+      for (const teamCode of normalizedFilter) {
+        const team = teams.find((entry) => normalizeTeamCode(entry.code) === teamCode);
+        if (!team) continue;
+        const oppTeam = teams.find((entry) => normalizeTeamCode(entry.code) !== teamCode) || teams[0];
+        const teamPlayers = buildWeekPlayers(team.roster || [], week, data.matchupPeriods, data.proTeams, data.scheduleGames);
+        const oppPlayers = buildWeekPlayers(oppTeam?.roster || [], week, data.matchupPeriods, data.proTeams, data.scheduleGames);
+        matchups.push({
+          week,
+          team: teamCode,
+          opp: normalizeTeamCode(oppTeam?.code) || "N/A",
+          actual: 0,
+          reason: "",
+          teams: {
+            [teamCode]: teamPlayers,
+            [normalizeTeamCode(oppTeam?.code) || "N/A"]: oppPlayers,
+          },
+        });
+      }
+    }
+
+    res.json({
+      source,
+      weekMeta: weekMetaPayload,
+      matchups,
+    });
+  } catch (error) {
+    res.status(500).json({ error: error?.message || "Failed to load matchups" });
+  }
+});
+
+app.get("/api/schedule", async (_req, res) => {
+  try {
+    const { value } = await withSeasonRetry(async (api) => {
+      const schedules = await api.getProTeamSchedules();
+      const proTeams = schedules?.settings?.proTeams || [];
+      return {
+        schedule: flattenScheduleGames(proTeams),
+        weekMeta: WEEK_META,
+      };
+    });
+    res.json(value);
+  } catch {
+    res.json({
+      schedule: [],
+      weekMeta: WEEK_META,
+    });
+  }
+});
+
 app.get("/api/weekly-max", async (_req, res) => {
   const weekPlans = [];
 
@@ -557,8 +762,8 @@ app.get("/api/weekly-max", async (_req, res) => {
     const spy = teams.find((t) => t.code === "SPY") || SEED_TEAMS[0];
     const cmo = teams.find((t) => t.code === "CMO") || SEED_TEAMS[1];
 
-    const spyPlayers = buildWeekPlayers(spy.roster, w.week, data.matchupPeriods, data.proTeams);
-    const cmoPlayers = buildWeekPlayers(cmo.roster, w.week, data.matchupPeriods, data.proTeams);
+    const spyPlayers = buildWeekPlayers(spy.roster, w.week, data.matchupPeriods, data.proTeams, data.scheduleGames);
+    const cmoPlayers = buildWeekPlayers(cmo.roster, w.week, data.matchupPeriods, data.proTeams, data.scheduleGames);
 
     const spyLineup = bestLineup(spyPlayers);
     const cmoLineup = bestLineup(cmoPlayers);

@@ -28,6 +28,23 @@ function fmtNum(n) {
   return Number(n || 0).toFixed(1);
 }
 
+function fmtGameDays(gameDates = []) {
+  const list = Array.isArray(gameDates) ? gameDates.filter(Boolean) : [];
+  if (!list.length) return "Days unavailable";
+  return list
+    .map((date) => {
+      const parsed = new Date(`${String(date).slice(0, 10)}T00:00:00Z`);
+      if (Number.isNaN(parsed.getTime())) return String(date).slice(0, 10);
+      return parsed.toLocaleDateString(undefined, {
+        weekday: "short",
+        month: "short",
+        day: "numeric",
+        timeZone: "UTC",
+      });
+    })
+    .join(", ");
+}
+
 function setStatus(text, level = "") {
   el.apiStatus.textContent = text;
   el.apiStatus.className = `status ${level}`.trim();
@@ -37,6 +54,7 @@ function playerRow(p) {
   const rankClass = !p.isIR && p.rank <= 3 ? `rank-${p.rank}` : "";
   const starter = p.isStarter ? '<span class="chip starter">Starter</span>' : "";
   const injury = p.isIR ? `<span class="chip injury">${p.injuryLabel || "Injured"}</span>` : "";
+  const gameDays = fmtGameDays(p.gameDates);
 
   return `
     <tr class="${rankClass}">
@@ -44,9 +62,10 @@ function playerRow(p) {
       <td>
         <div class="max-name">${p.name}</div>
         <div class="max-meta">${starter}${injury}</div>
+        <div class="tiny game-days" title="${gameDays}">${gameDays}</div>
       </td>
       <td>${fmtNum(p.avg)}</td>
-      <td>${p.games}</td>
+      <td title="${gameDays}">${p.games}</td>
       <td>${fmtNum(p.weekValue)}</td>
     </tr>
   `;
